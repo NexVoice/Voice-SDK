@@ -1,6 +1,6 @@
 # Vyonica Voice Cloning Example
 
-Example Next.js app that demonstrates the [`vyonica`](https://www.npmjs.com/package/vyonica) JavaScript SDK for voice cloning.
+A polished Next.js demo for the [`vyonica`](https://www.npmjs.com/package/vyonica) JavaScript SDK. Shows off voice cloning with three control modes: **AI Mode** (style + speed presets), **Default Mode** (server-optimized defaults), and **Scientific Mode** (manual numeric parameters).
 
 ## Prerequisites
 
@@ -9,23 +9,19 @@ Example Next.js app that demonstrates the [`vyonica`](https://www.npmjs.com/pack
 
 ## Setup
 
-1. **Install dependencies**:
+1. **Install dependencies:**
 
    ```bash
    npm install
    ```
 
-   This pulls the [`vyonica`](https://www.npmjs.com/package/vyonica) SDK from npm.
+   This pulls [`vyonica@^0.3.0`](https://www.npmjs.com/package/vyonica) from npm.
 
-2. **Configure environment variables**
-
-   Copy `env.sample` to `.env.local` and set your API key:
+2. **Configure environment variables.** Copy `env.sample` to `.env.local` and set your API key:
 
    ```bash
    cp env.sample .env.local
    ```
-
-   Edit `.env.local`:
 
    - `VYONICA_API_KEY` (required) – your Vyonica API key
    - `VYONICA_BASE_URL` (optional) – API base URL, default `https://be.vyonica.com`
@@ -36,18 +32,21 @@ Example Next.js app that demonstrates the [`vyonica`](https://www.npmjs.com/pack
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Upload a WAV reference audio file, enter text to synthesize, adjust parameters if needed, and click **Clone voice**. When the job completes, play or download the generated audio.
+Open [http://localhost:3000](http://localhost:3000). Upload a WAV reference, type some text, pick a mode, and hit **Generate Voice**.
 
-## Features
+## Modes
 
-- **Reference audio upload** – WAV file used as the voice to clone
-- **Text input** – Text to synthesize in the cloned voice
-- **Advanced parameters** – Temperature, Top P, Min P, CFG weight, exaggeration, repetition penalty, and source/synthesis language
-- **Status and errors** – Loading state, success message, and error details with retry
-- **Audio playback and download** – Play the result in the browser or download as WAV
+| Mode | What it sends to the SDK | Use when… |
+|---|---|---|
+| **AI Mode** | `style` (`natural` / `energetic` / `serious`) and `speed` (`slow` / `normal` / `fast` / `very_fast`) | You want fast, opinionated results without touching numeric parameters. |
+| **Default** | Nothing extra | You want the backend's recommended defaults. |
+| **Scientific** | `cfgWeight`, `exaggeration`, `temperature`, `topP`, `minP`, `repetitionPenalty` | You want full manual control. |
 
 ## Project structure
 
-- `app/page.tsx` – Main page that renders the demo
-- `app/components/` – React components (VoiceCloningDemo, FileUpload, ParameterControls, JobStatus, AudioPlayer)
+- `app/page.tsx` – Page shell + header
+- `app/components/VoiceCloningDemo.tsx` – Top-level orchestrator (state + layout)
+- `app/components/FileUpload.tsx` – Reference WAV drag-and-drop upload
+- `app/components/SynthesisSettings.tsx` – 3-tab mode switcher (AI / Default / Scientific) + Generate button
+- `app/components/JobStatus.tsx`, `AudioPlayer.tsx` – Status feedback + result playback/download
 - `app/api/clone/route.ts` – Next.js API route that calls the Vyonica SDK (keeps the API key on the server)

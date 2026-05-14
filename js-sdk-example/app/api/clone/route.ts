@@ -1,12 +1,25 @@
 import { NextResponse } from 'next/server';
-import { VyonicaClient } from 'vyonica';
 import {
+  VyonicaClient,
   AuthenticationError,
   QuotaExceededError,
   JobFailedError,
   JobTimeoutError,
   VyonicaError,
+  type CloneOptions,
 } from 'vyonica';
+
+const ALLOWED_STYLES = ['natural', 'energetic', 'serious'] as const;
+const ALLOWED_SPEEDS = ['slow', 'normal', 'fast', 'very_fast'] as const;
+type AiStyle = (typeof ALLOWED_STYLES)[number];
+type AiSpeed = (typeof ALLOWED_SPEEDS)[number];
+
+function isStyle(v: unknown): v is AiStyle {
+  return typeof v === 'string' && (ALLOWED_STYLES as readonly string[]).includes(v);
+}
+function isSpeed(v: unknown): v is AiSpeed {
+  return typeof v === 'string' && (ALLOWED_SPEEDS as readonly string[]).includes(v);
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.VYONICA_API_KEY;
@@ -23,15 +36,13 @@ export async function POST(request: Request) {
   try {
     formData = await request.formData();
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid form data' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
   }
 
   const file = formData.get('ref_wav');
   const text = formData.get('text');
-  const optionsJson = formData.get('options');
+  const mode = formData.get('mode');
+  const language = formData.get('language');
 
   if (!file || !(file instanceof Blob) || file.size === 0) {
     return NextResponse.json(
@@ -39,7 +50,6 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
   if (!text || typeof text !== 'string' || !text.trim()) {
     return NextResponse.json(
       { error: 'Text to synthesize is required' },
@@ -47,31 +57,54 @@ export async function POST(request: Request) {
     );
   }
 
-  let options: Record<string, unknown> = {};
-  if (optionsJson && typeof optionsJson === 'string') {
-    try {
-      options = JSON.parse(optionsJson) as Record<string, unknown>;
-    } catch {
-      // use defaults
+  const cloneOptions: CloneOptions = {
+    text: text.trim(),
+    language: typeof language === 'string' && language ? language : 'en',
+  };
+
+  if (mode === 'ai') {
+    const style = formData.get('style');
+    const speed = formData.get('speed');
+    if (!isStyle(style) || !isSpeed(speed)) {
+      return NextResponse.json(
+        {
+          error: 'AI mode requires valid style and speed',
+          details: `style must be one of ${ALLOWED_STYLES.join('|')}, speed must be one of ${ALLOWED_SPEEDS.join('|')}`,
+        },
+        { status: 400 }
+      );
+    }
+    cloneOptions.style = style;
+    cloneOptions.speed = speed;
+  } else if (mode === 'scientific') {
+    const sciJson = formData.get('scientific');
+    if (typeof sciJson === 'string') {
+      try {
+        const sci = JSON.parse(sciJson) as Partial<{
+          cfgWeight: number;
+          exaggeration: number;
+          temperature: number;
+          topP: number;
+          minP: number;
+          repetitionPenalty: number;
+        }>;
+        if (typeof sci.cfgWeight === 'number') cloneOptions.cfgWeight = sci.cfgWeight;
+        if (typeof sci.exaggeration === 'number') cloneOptions.exaggeration = sci.exaggeration;
+        if (typeof sci.temperature === 'number') cloneOptions.temperature = sci.temperature;
+        if (typeof sci.topP === 'number') cloneOptions.topP = sci.topP;
+        if (typeof sci.minP === 'number') cloneOptions.minP = sci.minP;
+        if (typeof sci.repetitionPenalty === 'number') cloneOptions.repetitionPenalty = sci.repetitionPenalty;
+      } catch {
+        // fall through to defaults
+      }
     }
   }
+  // mode === 'default' → send nothing extra; backend uses optimized defaults
 
   const client = new VyonicaClient({
     apiKey,
     baseUrl: baseUrl || 'https://be.vyonica.com',
   });
-
-  const cloneOptions = {
-    text: text.trim(),
-    language: options.language as string | undefined,
-    synthesisLanguage: options.synthesisLanguage as string | undefined,
-    temperature: options.temperature as number | undefined,
-    topP: options.topP as number | undefined,
-    minP: options.minP as number | undefined,
-    cfgWeight: options.cfgWeight as number | undefined,
-    exaggeration: options.exaggeration as number | undefined,
-    repetitionPenalty: options.repetitionPenalty as number | undefined,
-  };
 
   try {
     const audioBuffer = await client.clone(file, cloneOptions, {
